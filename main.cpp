@@ -126,10 +126,7 @@ void Network::MNIST(const string& imageFile, const string& labelFile) {
     this->imagePath = folder + imageFile;
     this->labelPath = folder + labelFile;
 
-    // Read images
     this->images = this->readMNISTImages(this->imagePath);
-
-    // Read labels
     this->labels = this->readMNISTLabels(this->labelPath);
 }
 // -----------------------------------------------------------
