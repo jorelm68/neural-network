@@ -14,6 +14,7 @@ class Network {
         void const printArguments();
         void const printImage(const int& index);
         void readMNIST(const string& imageFile, const string& labelFile);
+        void train();
 
     private:
         int argc;
@@ -129,13 +130,19 @@ void Network::readMNIST(const string& imageFile, const string& labelFile) {
     this->images = this->readMNISTImages(this->imagePath);
     this->labels = this->readMNISTLabels(this->labelPath);
 }
+void Network::train() {
+    cout << "Training the network..." << endl;
+
+    // Train the network here
+
+}
 // -----------------------------------------------------------
 
 // Network function taking in arguments -------------------------
 int main(int argc, char **argv) {
-    Network main(argc, argv);
+    Network network(argc, argv);
 
-    main.readMNIST("train-images-idx3-ubyte", "train-labels-idx1-ubyte");
+    network.readMNIST("train-images-idx3-ubyte", "train-labels-idx1-ubyte");
     return 0;
 }
 // -----------------------------------------------------------
