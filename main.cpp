@@ -6,11 +6,11 @@
 
 using namespace std;
 
-// Main class ------------------------------------------------
-class Main {
+// Network class ------------------------------------------------
+class Network {
     public:
-        Main(int argc, char **argv);
-        ~Main();
+        Network(int argc, char **argv);
+        ~Network();
         void const printArguments();
         void const printImage(const int& index);
         void MNIST(const string& imageFile, const string& labelFile);
@@ -39,21 +39,21 @@ class Main {
 };
 // -----------------------------------------------------------
 
-// Main class constructor and destructor ---------------------
-Main::Main(int argc, char **argv) {
-    cout << "Main object created" << endl;
+// Network class constructor and destructor ---------------------
+Network::Network(int argc, char **argv) {
+    cout << "Network object created" << endl;
 
     // Store the arguments
     this->argc = argc;
     this->argv = argv;
 }
-Main::~Main() {
-    cout << "Main object destroyed" << endl;
+Network::~Network() {
+    cout << "Network object destroyed" << endl;
 }
 // -----------------------------------------------------------
 
-// Main class private functions ------------------------------
-vector<vector<uint8_t>> Main::readMNISTImages(const string& filename) {
+// Network class private functions ------------------------------
+vector<vector<uint8_t>> Network::readMNISTImages(const string& filename) {
     std::ifstream file(filename, std::ios::binary);
     if (!file.is_open()) {
         std::cerr << "Failed to open file: " << filename << std::endl;
@@ -75,7 +75,7 @@ vector<vector<uint8_t>> Main::readMNISTImages(const string& filename) {
     file.close();
     return images;
 }
-vector<uint8_t> Main::readMNISTLabels(const string& filename) {
+vector<uint8_t> Network::readMNISTLabels(const string& filename) {
     std::ifstream file(filename, std::ios::binary);
     if (!file.is_open()) {
         std::cerr << "Failed to open file: " << filename << std::endl;
@@ -93,20 +93,20 @@ vector<uint8_t> Main::readMNISTLabels(const string& filename) {
     file.close();
     return labels;
 }
-int32_t Main::readInt(std::ifstream &file) {
+int32_t Network::readInt(std::ifstream &file) {
     int32_t result = 0;
     file.read(reinterpret_cast<char*>(&result), 4);
     return __builtin_bswap32(result);  // For big-endian to little-endian
 }
 // -----------------------------------------------------------
 
-// Main class public functions -------------------------------
-void const Main::printArguments() {
+// Network class public functions -------------------------------
+void const Network::printArguments() {
     for (int i = 0; i < this->argc; ++i) {
         cout << "Argument " << i << ": " << this->argv[i] << endl;
     }
 }
-void const Main::printImage(const int& index) {
+void const Network::printImage(const int& index) {
     // Display the first image and label as an example
     if (numImages > 0 && numLabels > 0) {
         std::cout << "Printing image " << index << " with label " <<  static_cast<int>(this->labels[index]) << "\n";
@@ -118,7 +118,7 @@ void const Main::printImage(const int& index) {
         }
     }
 }
-void Main::MNIST(const string& imageFile, const string& labelFile) {
+void Network::MNIST(const string& imageFile, const string& labelFile) {
     string folder = "data/";
     this->imageFile = imageFile;
     this->labelFile = labelFile;
@@ -134,9 +134,9 @@ void Main::MNIST(const string& imageFile, const string& labelFile) {
 }
 // -----------------------------------------------------------
 
-// Main function taking in arguments -------------------------
+// Network function taking in arguments -------------------------
 int main(int argc, char **argv) {
-    Main main(argc, argv);
+    Network main(argc, argv);
 
     main.MNIST("train-images-idx3-ubyte", "train-labels-idx1-ubyte");
     return 0;
