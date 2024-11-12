@@ -13,7 +13,7 @@ class Network {
         ~Network();
         void const printArguments();
         void const printImage(const int& index);
-        void MNIST(const string& imageFile, const string& labelFile);
+        void readMNIST(const string& imageFile, const string& labelFile);
 
     private:
         int argc;
@@ -118,7 +118,7 @@ void const Network::printImage(const int& index) {
         }
     }
 }
-void Network::MNIST(const string& imageFile, const string& labelFile) {
+void Network::readMNIST(const string& imageFile, const string& labelFile) {
     string folder = "data/";
     this->imageFile = imageFile;
     this->labelFile = labelFile;
@@ -135,7 +135,7 @@ void Network::MNIST(const string& imageFile, const string& labelFile) {
 int main(int argc, char **argv) {
     Network main(argc, argv);
 
-    main.MNIST("train-images-idx3-ubyte", "train-labels-idx1-ubyte");
+    main.readMNIST("train-images-idx3-ubyte", "train-labels-idx1-ubyte");
     return 0;
 }
 // -----------------------------------------------------------
