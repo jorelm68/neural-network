@@ -343,9 +343,14 @@ double Network::testAccuracy(const vector<vector<uint8_t>>& testImages, const ve
 
 // Network class public functions -------------------------------
 void const Network::printArguments() {
-    for (int i = 0; i < this->argc; ++i) {
-        cout << "Argument " << i << ": " << this->argv[i] << endl;
-    }
+    // Identify each of the arguments and print their values
+    cout << "Train Image File: " << this->argv[1] << endl;
+    cout << "Train Label File: " << this->argv[2] << endl;
+    cout << "Test Image File: " << this->argv[3] << endl;
+    cout << "Test Label File: " << this->argv[4] << endl;
+    cout << "Activation Function: " << this->argv[5] << endl;
+    cout << "Loss Function: " << this->argv[6] << endl;
+    cout << "Learning Rate: " << this->argv[7] << endl;
 }
 void const Network::printWeights() {
     cout << "Hidden Layer Weights: " << endl;
