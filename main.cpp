@@ -4,12 +4,18 @@
 #include <fstream>
 #include <cstdint>
 #include <cmath>
+#include <cstdlib>
+#include <limits>
+#include <algorithm>
 
 using namespace std;
 
 // Helper functions ---------------------------------------------
 double reLU(double x) {
     return x > 0 ? x : 0;
+}
+double reLU_derivative(double x) {
+    return x > 0 ? 1 : 0;
 }
 double sigmoid(double x) {
     return 1 / (1 + exp(-x));
@@ -40,8 +46,27 @@ double meanSquaredError(const vector<double>& predictedOutput, const uint8_t& tr
     for (int i = 0; i < 10; ++i) {
         loss += (oneHotLabel[i] - predictedOutput[i]) * (oneHotLabel[i] - predictedOutput[i]);
     }
-    loss /= 10.0;  // Divide by the number of classes for mean
-    return loss;
+    return loss / 10.0;  // Divide by the number of classes for mean
+}
+
+void printImage(const vector<uint8_t>& image) {
+    for (int i = 0; i < 28; ++i) {
+        for (int j = 0; j < 28; ++j) {
+            cout << (image[i * 28 + j] > 128 ? "#" : " ");
+        }
+        cout << endl;
+    }
+}
+void writeImage(const vector<uint8_t>& image) {
+    ofstream file("output.txt", ios::app);
+    for (int i = 0; i < 28; ++i) {
+        for (int j = 0; j < 28; ++j) {
+            file << (image[i * 28 + j] > 128 ? "#" : " ");
+        }
+        file << endl;
+    }
+    file << endl;
+    file.close();
 }
 // --------------------------------------------------------------
 
@@ -51,10 +76,9 @@ class Network {
         Network(int argc, char **argv);
         ~Network();
         void const printArguments();
-        void const printImage(const int& index);
         void const printWeights();
-        void readMNIST(const string& imageFile, const string& labelFile, const string& activationFunction, const string& lossFunction, const int& learningRate);
-        void train(const int numEpochs);
+        void train(const string& imageFile, const string& labelFile, const string& activationFunction, const string& lossFunction, const double& learningRate, const int numEpochs = 10);
+        void test(const string& testImageFile, const string& testLabelFile);
 
     private:
         int argc;
@@ -91,7 +115,8 @@ class Network {
         vector<double> activateHidden(const vector<uint8_t>& image);
         vector<double> activateOutput(const vector<double>& hidden_activations);
         double computeLoss(const vector<double>& predictedOutput, const uint8_t& trueLabel);
-        void backpropagate(const vector<uint8_t>& image, const vector<double>& predictedOutput, const vector<double>& output_activations, const uint8_t& trueLabel);
+        void backpropagate(const vector<uint8_t>& image, const vector<double>& predictedOutput, const vector<double>& hiddenActivations, const uint8_t& trueLabel);
+        double testAccuracy(const vector<vector<uint8_t>>& testImages, const vector<uint8_t>& testLabels);
 };
 // -----------------------------------------------------------
 
@@ -152,20 +177,31 @@ vector<uint8_t> Network::readMNISTLabels(const string& filename) {
 int32_t Network::readInt(std::ifstream &file) {
     int32_t result = 0;
     file.read(reinterpret_cast<char*>(&result), 4);
-    return __builtin_bswap32(result);  // For big-endian to little-endian
+    return __builtin_bswap32(result);  // For big-endian to little-endian conversion
 }
 
 void Network::randomInitialization() {
+    double stddev_hidden = sqrt(2.0 / 784); // He initialization for ReLU activations
+    double stddev_output = sqrt(2.0 / 128); // He initialization for ReLU activations
+
     for (auto& row : this->weights_hidden) {
         for (auto& w : row) {
-            w = static_cast<double>(rand()) / RAND_MAX;
+            w = stddev_hidden * static_cast<double>(rand()) / RAND_MAX;
         }
     }
 
     for (auto& row : this->weights_output) {
         for (auto& w : row) {
-            w = static_cast<double>(rand()) / RAND_MAX;
+            w = stddev_output * static_cast<double>(rand()) / RAND_MAX;
         }
+    }
+
+    for (auto& b : this->bias_hidden) {
+        b = static_cast<double>(rand()) / RAND_MAX;
+    }
+
+    for (auto& b : this->bias_output) {
+        b = static_cast<double>(rand()) / RAND_MAX;
     }
 }
 vector<double> Network::activateHidden(const vector<uint8_t>& input) {
@@ -175,7 +211,7 @@ vector<double> Network::activateHidden(const vector<uint8_t>& input) {
     for (int j = 0; j < 128; ++j) {
         double activation = 0.0;
         for (int i = 0; i < 784; ++i) {
-            activation += input[i] * this->weights_hidden[i][j]; // weighted sum
+            activation += input[i] / 255.0 * this->weights_hidden[i][j]; // Normalized input
         }
         // add the bias term
         activation += this->bias_hidden[j];
@@ -183,35 +219,37 @@ vector<double> Network::activateHidden(const vector<uint8_t>& input) {
         // Apply the activation function
         if (this->activationFunction == "reLU") {
             hiddenActivations[j] = reLU(activation);
+        } else if (this->activationFunction == "sigmoid") {
+            hiddenActivations[j] = sigmoid(activation);
         }
     }
 
     return hiddenActivations;
 }
-vector<double> Network::activateOutput(const vector<double>& hidden_activations) {
+vector<double> Network::activateOutput(const vector<double>& hiddenActivations) {
     vector<double> outputActivations(10, 0.0);
+    vector<double> preSoftmax(10, 0.0);
 
     for (int k = 0; k < 10; ++k) {
         double activation = 0.0;
         for (int j = 0; j < 128; ++j) {
-            activation += hidden_activations[j] * this->weights_output[j][k]; // weighted sum
+            activation += hiddenActivations[j] * this->weights_output[j][k]; // weighted sum
         }
         // add the bias term
         activation += this->bias_output[k];
 
-        // Apply the activation function
-        if (this->activationFunction == "reLU") {
-            outputActivations[k] = reLU(activation);
-        }
+        // Store the pre-softmax value
+        preSoftmax[k] = activation;
     }
 
     // Apply softmax
+    double maxValue = *max_element(preSoftmax.begin(), preSoftmax.end());
     double sumExp = 0.0;
-    for (double val : outputActivations) {
-        sumExp += exp(val);
+    for (const double& val : preSoftmax) {
+        sumExp += exp(val - maxValue); // Stability improvement by subtracting maxValue
     }
-    for (double& val : outputActivations) {
-        val = exp(val) / sumExp;  // Normalize to get probabilities
+    for (int k = 0; k < 10; ++k) {
+        outputActivations[k] = exp(preSoftmax[k] - maxValue) / sumExp;  // Normalize to get probabilities
     }
 
     return outputActivations;
@@ -225,7 +263,7 @@ double Network::computeLoss(const vector<double>& predictedOutput, const uint8_t
     else if (this->lossFunction == "MSE") {
         loss = meanSquaredError(predictedOutput, trueLabel);
     }
-    
+
     return loss;
 }
 void Network::backpropagate(const vector<uint8_t>& image, const vector<double>& predictedOutput, const vector<double>& hiddenActivations, const uint8_t& trueLabel) {
@@ -236,7 +274,7 @@ void Network::backpropagate(const vector<uint8_t>& image, const vector<double>& 
     // Step 2: Calculate output layer error
     vector<double> outputErrors(10);
     for (int j = 0; j < 10; ++j) {
-        outputErrors[j] = (predictedOutput[j] - oneHotLabel[j]) * predictedOutput[j] * (1 - predictedOutput[j]); // Derivative of MSE + softmax
+        outputErrors[j] = predictedOutput[j] - oneHotLabel[j];
     }
 
     // Step 3: Calculate hidden layer error
@@ -246,7 +284,13 @@ void Network::backpropagate(const vector<uint8_t>& image, const vector<double>& 
         for (int j = 0; j < 10; ++j) {
             hiddenErrors[i] += outputErrors[j] * this->weights_output[i][j];
         }
-        hiddenErrors[i] *= hiddenActivations[i] * (1 - hiddenActivations[i]); // Derivative of sigmoid
+
+        // May be reLU or sigmoid
+        if (this->activationFunction == "reLU") {
+            hiddenErrors[i] *= reLU_derivative(hiddenActivations[i]);
+        } else if (this->activationFunction == "sigmoid") {
+            hiddenErrors[i] *= hiddenActivations[i] * (1 - hiddenActivations[i]);
+        }
     }
 
     // Step 4: Update weights for hidden-to-output layer
@@ -257,11 +301,43 @@ void Network::backpropagate(const vector<uint8_t>& image, const vector<double>& 
     }
 
     // Step 5: Update weights for input-to-hidden layer
-    for (int i = 0; i < image.size(); ++i) {
+    for (int i = 0; i < 784; ++i) {
         for (int j = 0; j < hiddenActivations.size(); ++j) {
-            this->weights_hidden[i][j] -= this->learningRate * hiddenErrors[j] * image[i];
+            this->weights_hidden[i][j] -= this->learningRate * hiddenErrors[j] * (image[i] / 255.0);
         }
     }
+
+    // Update biases
+    for (int j = 0; j < 10; ++j) {
+        this->bias_output[j] -= this->learningRate * outputErrors[j];
+    }
+    for (int j = 0; j < hiddenActivations.size(); ++j) {
+        this->bias_hidden[j] -= this->learningRate * hiddenErrors[j];
+    }
+}
+double Network::testAccuracy(const vector<vector<uint8_t>>& testImages, const vector<uint8_t>& testLabels) {
+    int correctPredictions = 0;
+
+    for (size_t i = 0; i < testImages.size(); ++i) {
+        vector<double> hiddenActivations = this->activateHidden(testImages[i]);
+        vector<double> outputActivations = this->activateOutput(hiddenActivations);
+
+        auto maxElementIt = std::max_element(outputActivations.begin(), outputActivations.end());
+        int prediction = std::distance(outputActivations.begin(), maxElementIt);
+
+        if (prediction == testLabels[i]) {
+            correctPredictions++;
+        }
+
+        // Write the image and prediction to a file called output.txt
+        ofstream file("output.txt", ios::app);
+        file << "Prediction: " << prediction << ", True Label: " << static_cast<int>(testLabels[i]) << endl;
+        writeImage(testImages[i]);
+        file.close();
+    }
+
+    double accuracy = static_cast<double>(correctPredictions) / testImages.size();
+    return accuracy;
 }
 // -----------------------------------------------------------
 
@@ -271,19 +347,8 @@ void const Network::printArguments() {
         cout << "Argument " << i << ": " << this->argv[i] << endl;
     }
 }
-void const Network::printImage(const int& index) {
-    // Display the first image and label as an example
-    if (numImages > 0 && numLabels > 0) {
-        std::cout << "Printing image " << index << " with label " <<  static_cast<int>(this->labels[index]) << "\n";
-        for (int i = 0; i < rows; ++i) {
-            for (int j = 0; j < cols; ++j) {
-                std::cout << (images[index][i * cols + j] > 0 ? "*" : " ") << " ";
-            }
-            std::cout << "\n";
-        }
-    }
-}
 void const Network::printWeights() {
+    cout << "Hidden Layer Weights: " << endl;
     for (int i = 0; i < this->weights_hidden.size(); ++i) {
         for (int j = 0; j < this->weights_hidden[i].size(); ++j) {
             cout << this->weights_hidden[i][j] << " ";
@@ -291,6 +356,7 @@ void const Network::printWeights() {
         cout << endl;
     }
 
+    cout << "Output Layer Weights: " << endl;
     for (int i = 0; i < this->weights_output.size(); ++i) {
         for (int j = 0; j < this->weights_output[i].size(); ++j) {
             cout << this->weights_output[i][j] << " ";
@@ -298,7 +364,7 @@ void const Network::printWeights() {
         cout << endl;
     }
 }
-void Network::readMNIST(const string& imageFile, const string& labelFile, const string& activationFunction, const string& lossFunction, const int& learningRate) {
+void Network::train(const string& imageFile, const string& labelFile, const string& activationFunction, const string& lossFunction, const double& learningRate, const int numEpochs) {
     string folder = "data/";
     this->imageFile = imageFile;
     this->labelFile = labelFile;
@@ -311,8 +377,7 @@ void Network::readMNIST(const string& imageFile, const string& labelFile, const 
 
     this->images = this->readMNISTImages(this->imagePath);
     this->labels = this->readMNISTLabels(this->labelPath);
-}
-void Network::train(const int numEpochs = 10) {
+    
     cout << "Training the network..." << endl;
 
     this->weights_hidden = vector<vector<double>>(784, vector<double>(128));
@@ -332,14 +397,17 @@ void Network::train(const int numEpochs = 10) {
             vector<double> outputActivations = activateOutput(hiddenActivations);
 
             // Step 2: Compute loss
-            epoch_loss += computeLoss(outputActivations, labels[i]);
+            double loss = computeLoss(outputActivations, labels[i]);
 
             // Step 3: Backpropagate
             backpropagate(images[i], outputActivations, hiddenActivations, labels[i]);
 
-            // Print loss every 1000 images
-            if (i % 1000 == 0) {
-                cout << "Epoch " << epoch + 1 << "/" << numEpochs << ", Image " << i << "/" << images.size() << ", Loss: " << epoch_loss / (i + 1) << endl;
+            epoch_loss += loss;
+
+            if (i % 1000 == 999) {
+                cout << "Epoch " << epoch + 1 << "/" << numEpochs 
+                        << ", Image " << i + 1 << "/" << images.size() 
+                        << ", Loss: " << epoch_loss / (i + 1) << endl;
             }
         }
 
@@ -350,17 +418,32 @@ void Network::train(const int numEpochs = 10) {
 
     cout << "Training complete." << endl;
 }
+void Network::test(const string& testImageFile, const string& testLabelFile) {
+    string folder = "data/";
+    string testImagePath = folder + testImageFile;
+    string testLabelPath = folder + testLabelFile;
+
+    // Clear the text currently in the output.txt file
+    ofstream file("output.txt");
+    file.close();
+
+    cout << "Testing the network..." << endl;
+    vector<vector<uint8_t>> testImages = this->readMNISTImages(testImagePath);
+    vector<uint8_t> testLabels = this->readMNISTLabels(testLabelPath);
+
+    double accuracy = testAccuracy(testImages, testLabels);
+    cout << "Testing Accuracy: " << accuracy * 100 << "%\n";
+}
 // -----------------------------------------------------------
 
 // Network function taking in arguments -------------------------
 int main(int argc, char **argv) {
     Network network(argc, argv);
 
-    // Activation: reLU
+    // Activation: reLU, sigmoid
     // Loss: crossEntropy, MSE
-    network.readMNIST("train-images-idx3-ubyte", "train-labels-idx1-ubyte", "reLU", "crossEntropy", 0.01);
-
-    network.train(2);
+    network.train("train-images-idx3-ubyte", "train-labels-idx1-ubyte", "reLU", "crossEntropy", 0.01, 2);
+    network.test("t10k-images-idx3-ubyte", "t10k-labels-idx1-ubyte");
     return 0;
 }
 // -----------------------------------------------------------
