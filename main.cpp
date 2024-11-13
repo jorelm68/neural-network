@@ -440,10 +440,22 @@ void Network::test(const string& testImageFile, const string& testLabelFile) {
 int main(int argc, char **argv) {
     Network network(argc, argv);
 
+    // Print the arguments
+    network.printArguments();
+
+    string trainImages = argv[1];
+    string trainLabels = argv[2];
+    string testImages = argv[3];
+    string testLabels = argv[4];
+    string activation = argv[5];
+    string loss = argv[6];
+    double learningRate = stod(argv[7]);
+    int numEpochs = stoi(argv[8]);
+
     // Activation: reLU, sigmoid
     // Loss: crossEntropy, MSE
-    network.train("train-images-idx3-ubyte", "train-labels-idx1-ubyte", "reLU", "crossEntropy", 0.01, 2);
-    network.test("t10k-images-idx3-ubyte", "t10k-labels-idx1-ubyte");
+    network.train(trainImages, trainLabels, activation, loss, learningRate, numEpochs);
+    network.test(testImages, testLabels);
     return 0;
 }
 // -----------------------------------------------------------
