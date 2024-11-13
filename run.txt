@@ -1,0 +1,1 @@
+./main train-images train-labels test-images test-labels reLU crossEntropy 0.01 2
